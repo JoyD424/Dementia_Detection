@@ -1,4 +1,5 @@
 import sys, re
+# hi 
 
 def wordDiversity(listWords):
     dict = {}
