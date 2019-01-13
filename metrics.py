@@ -1,4 +1,4 @@
-import sys, re, string, nltk
+import sys, re, string, nltk, codecs
 
 reload(sys)
 sys.setdefaultencoding("utf-8") # Instead of ASCII, which had caused errors with nltk.tokenizer as it processed file contents
@@ -55,14 +55,12 @@ def tokenizeTxt(text):
 # File -> String
 # Takes in a file, delete double quotes and convert utf-8 single quotes to ', return revised content
 # Ex: '\xe2\x80\x9cI said \xe2\x80\x98books,\xe2\x80\x99 \xe2\x80\x9d she said.\n' -> '"I said 'books,' " she said.\n'
-def filterDoubleQuotes(txtFile):
+def filterSpecialPunctuation(txtFile):
     contents = txtFile.read()
-    # Get rid of double quotes
-    contents = re.sub(r'\xe2\x80\x9c', '', contents) 
-    contents = re.sub(r'\xe2\x80\x9d', '', contents)
-    # Substitute utf-8 single quote characters with '
-    contents = re.sub(r'\xe2\x80\x98', "'", contents)
-    contents = re.sub(r'\xe2\x80\x99', "'", contents)
+    # Turn unicode single quotes to ascii single quotes (for contraction processing purposes)
+    contents = re.sub(u"(\u2019|\u2018)", "'", contents)
+    # Get rid of double quotes, em dashes, and underscores
+    contents = re.sub(u"(\u201c|\u201d|\u2014|\u005f)", ' ', contents)
     return contents
 
 
@@ -70,8 +68,8 @@ def filterDoubleQuotes(txtFile):
 # Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
 def getTxtFromFile():
     # txtFileName = raw_input("Text file name (.txt): ")
-    txtFile = open("sample.txt", 'r')
-    contents = filterDoubleQuotes(txtFile)
+    txtFile = codecs.open('sample.txt', encoding='utf-8')
+    contents = filterSpecialPunctuation(txtFile)
     return contents
 
 
