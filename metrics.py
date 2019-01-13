@@ -1,5 +1,8 @@
+from __future__ import division
 import sys, re, string, nltk, codecs
+from nltk.stem import WordNetLemmatizer
 
+lemmatizer = WordNetLemmatizer()
 reload(sys)
 sys.setdefaultencoding("utf-8") # Instead of ASCII, which had caused errors with nltk.tokenizer as it processed file contents
 
@@ -47,7 +50,7 @@ def removePunctuationTokens(tokens):
 # Ex: "Hello! I'm happy with the blue-ish pony, maybe?" -> ["Hello", "I", "'m", "happy", "with", "the", "blue-ish", "pony", "maybe"]
 def tokenizeTxt(text):
     initialTokens = nltk.word_tokenize(text) 
-    print(initialTokens) # TEST
+    # print(initialTokens) # TEST
     processedTokens = removePunctuationTokens(initialTokens)
     return processedTokens
 
@@ -59,8 +62,8 @@ def filterSpecialPunctuation(txtFile):
     contents = txtFile.read()
     # Turn unicode single quotes to ascii single quotes (for contraction processing purposes)
     contents = re.sub(u"(\u2019|\u2018)", "'", contents)
-    # Get rid of double quotes, em dashes, and underscores
-    contents = re.sub(u"(\u201c|\u201d|\u2014|\u005f)", ' ', contents)
+    # Get rid of double quotes, em dashes, double hyphens, and underscores
+    contents = re.sub(u"(\u201c|\u201d|\u2014|\u005f|\u2010\u2010)", ' ', contents)
     return contents
 
 
@@ -73,10 +76,40 @@ def getTxtFromFile():
     return contents
 
 
+# List String -> Int
+# Counts the number of unique lemmatized words in the list of tokens (only up to the 55,000th token)
+def countLemmatizedWords(tokens):
+    lemmatizedWordDict = {}
+    for index, token in enumerate(tokens):
+        if not index < 55000:
+            break
+        print("Current number of words lemmatized:", index + 1)
+        lemmatizedToken = lemmatizer.lemmatize(token)
+        if lemmatizedToken not in lemmatizedWordDict:
+            lemmatizedWordDict[lemmatizedToken] = True
+    return len(lemmatizedWordDict)
+ 
+
+# List String -> Int
+# Divides number of lemmatized word types (total number of different words) by total word tokens (up to 55,000), and returns this ratio
+def typeToTokenRatio(tokens):
+    numWordTokens = len(tokens)
+    print("Length of tokens:", numWordTokens) # TEST
+    if numWordTokens > 55000:
+        numWordTokens = 55000
+    numWordTypes = countLemmatizedWords(tokens)
+    print("Total word types:", numWordTypes) # TEST
+    print("Modified length of tokens:", numWordTokens) # TEST
+    TTRRatio = (numWordTypes / numWordTokens)
+    print("TTR Ratio:", TTRRatio) # TEST
+    return TTRRatio
+
+
 def main():
     txt = getTxtFromFile()
     tokens = tokenizeTxt(txt)
-    print(tokens)
+    # print(tokens) # TEST
+    typeTokenRatio = typeToTokenRatio(tokens)
     return
 
 
