@@ -83,7 +83,7 @@ def countLemmatizedWords(tokens):
     for index, token in enumerate(tokens):
         if not index < 55000:
             break
-        print("Current number of words lemmatized:", index + 1)
+        # print("Current number of words lemmatized:", index + 1) # TEST
         lemmatizedToken = lemmatizer.lemmatize(token)
         if lemmatizedToken not in lemmatizedWordDict:
             lemmatizedWordDict[lemmatizedToken] = True
@@ -94,14 +94,14 @@ def countLemmatizedWords(tokens):
 # Divides number of lemmatized word types (total number of different words) by total word tokens (up to 55,000), and returns this ratio
 def typeToTokenRatio(tokens):
     numWordTokens = len(tokens)
-    print("Length of tokens:", numWordTokens) # TEST
+    # print("Length of tokens:", numWordTokens) # TEST
     if numWordTokens > 55000:
         numWordTokens = 55000
     numWordTypes = countLemmatizedWords(tokens)
-    print("Total word types:", numWordTypes) # TEST
-    print("Modified length of tokens:", numWordTokens) # TEST
+    # print("Total word types:", numWordTypes) # TEST
+    # print("Modified length of tokens:", numWordTokens) # TEST
     TTRRatio = (numWordTypes / numWordTokens)
-    print("TTR Ratio:", TTRRatio) # TEST
+    # print("TTR Ratio:", TTRRatio) # TEST
     return TTRRatio
 
 
