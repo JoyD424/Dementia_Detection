@@ -1,5 +1,7 @@
 import sys, re, string, nltk
 
+reload(sys)
+sys.setdefaultencoding("utf-8") # Instead of ASCII, which had caused errors with nltk.tokenizer as it processed file contents
 
 # Dictionary of contractions
 CONTRACTION_DICTIONARY = {
@@ -67,8 +69,8 @@ def filterDoubleQuotes(txtFile):
 # File -> String
 # Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
 def getTxtFromFile():
-    txtFileName = raw_input("Text file name (.txt): ")
-    txtFile = open(txtFileName, 'r')
+    # txtFileName = raw_input("Text file name (.txt): ")
+    txtFile = open("sample.txt", 'r')
     contents = filterDoubleQuotes(txtFile)
     return contents
 
@@ -76,6 +78,7 @@ def getTxtFromFile():
 def main():
     txt = getTxtFromFile()
     tokens = tokenizeTxt(txt)
+    print(tokens)
     return
 
 
