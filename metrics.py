@@ -2,9 +2,13 @@ from __future__ import division
 import sys, re, string, nltk, codecs
 from nltk.stem import WordNetLemmatizer
 
+
 lemmatizer = WordNetLemmatizer()
+
+
 reload(sys)
 sys.setdefaultencoding("utf-8") # Instead of ASCII, which had caused errors with nltk.tokenizer as it processed file contents
+
 
 # Dictionary of contractions
 CONTRACTION_DICTIONARY = {
@@ -23,8 +27,16 @@ CONTRACTION_DICTIONARY = {
 
 
 
+
+
+
+
+
+
+### FUNCTIONS FOR TOKEN/TYPE RATIO: ###
+
 # String -> String
-# Remove single quote from token IF it is NOT the end of a contraction (e.g. 't from don't, 've from I've, etc)
+# Token processing function: Remove single quote from token (str) IF it is NOT the end of a contraction (e.g. 't from don't, 've from I've, etc)
 # Ex: "'book" -> "book", "'ve" -> "'ve"
 def deleteSingleQuoteIfNotContraction(token):
     global CONTRACTION_DICTIONARY
@@ -34,14 +46,14 @@ def deleteSingleQuoteIfNotContraction(token):
 
 
 # List String -> List String
-# Remove all punctuation tokens from the list, and return the processed list.
+# Token processing function: Remove all punctuation tokens from the list, and return the processed list.
 # Ex: ["Hello", "!", "I", "'m", "happy", "with", "the", "blue-ish", "pony", ",", maybe", "?"] -> ["Hello", "I", "'m", "happy", "with", "the", "blue-ish", "pony", "maybe"] 
 def removePunctuationTokens(tokens):
     processedTokens = []
     for t in tokens:
         if not re.match("[" + string.punctuation + "]+", t): # Add to processedTokens anything that is not punctuation
             processedTokens.append(t)
-        elif re.match('\'[A-Za-z]+', t): #Ex: Checks special case for single quotes: matches 'book, or 've, but not ' 
+        elif re.match('\'[A-Za-z]+', t): # Checks special case for single quotes: matches 'book, or 've, but not ' 
             t = deleteSingleQuoteIfNotContraction(t)
             processedTokens.append(t)
     return processedTokens
@@ -58,8 +70,8 @@ def tokenizeTxt(text):
 
 
 # File -> String
-# Takes in a file, delete double quotes and convert utf-8 single quotes to ', return revised content
-# Ex: '\xe2\x80\x9cI said \xe2\x80\x98books,\xe2\x80\x99 \xe2\x80\x9d she said.\n' -> '"I said 'books,' " she said.\n'
+# Text processing: Takes in a file, delete double quotes and convert utf-8 single quotes to ', return revised content
+# Ex: '\u201cI said \u2018books,\u2019 \u201d she said.' -> '"I said 'books,' " she said.'
 def filterSpecialPunctuation(txtFile):
     contents = txtFile.read()
     # Turn unicode single quotes to ascii single quotes (for contraction processing purposes)
@@ -70,7 +82,7 @@ def filterSpecialPunctuation(txtFile):
 
 
 # File -> String
-# Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
+# Text processing: Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
 def getTxtFromFile():
     # txtFileName = raw_input("Text file name (.txt): ")
     txtFile = codecs.open('sample.txt', encoding='utf-8')
@@ -79,10 +91,10 @@ def getTxtFromFile():
 
 
 # (String, String) -> String
-# Determine a flag for the token based on it's tag (ADJ, NOUN, VERB, ADV, else) so that lemmatizer can lemmatize properly
-# Ex: ('purple', 'ADJ') -> 'a'
+# Determine a flag for the token based its part of speech (ADJ, NOUN, VERB, ADV, else) so that lemmatizer.lemmatize(...) can lemmatize properly
+# Ex: ('purple', 'ADJ') -> 'a'. Can then call lemmatizer.lemmatize('purple', pos='a')
 def assignPosTag(tuple):
-    posTag = 'n' # Default: treat as noun
+    posTag = 'n' # Default: treat as a noun
     if tuple[1] == 'ADJ':
         posTag = 'a'
     elif tuple[1] == 'ADV':
@@ -96,13 +108,13 @@ def assignPosTag(tuple):
 # Counts the number of unique lemmatized words in the list of tokens (only up to the 55,000th token)
 def countLemmatizedWords(tokens):
     lemmatizedWordDict = {}
-    PosTagList = nltk.pos_tag(tokens, tagset='universal')
+    PosTagList = nltk.pos_tag(tokens, tagset='universal') # Creates list of tuples: [(token, pos tag), etc]
     # print(PosTagList) # TEST
-    for index, tokenAndPosTuple in enumerate(PosTagList):
-        if not index < 55000:
+    for index, tokenPosTuple in enumerate(PosTagList):
+        if not index < 55000: # Only consider up to the 55,000th token
             break
-        posTag = assignPosTag(tokenAndPosTuple)
-        lemmatizedToken = lemmatizer.lemmatize(tokenAndPosTuple[0], pos=posTag)
+        posTag = assignPosTag(tokenPosTuple)
+        lemmatizedToken = lemmatizer.lemmatize(tokenPosTuple[0], pos=posTag)
         # print(lemmatizedToken) # TEST
         if lemmatizedToken not in lemmatizedWordDict:
             lemmatizedWordDict[lemmatizedToken] = True
@@ -111,6 +123,7 @@ def countLemmatizedWords(tokens):
 
 # List String -> Int
 # Divides number of lemmatized word types (total number of different words) by total word tokens (up to 55,000), and returns this ratio
+# This is effectively a measure of vocabulary size in a given text
 def getTypeTokenRatio(tokens):
     numWordTokens = len(tokens)
     # print("Length of tokens:", numWordTokens) # TEST
@@ -124,8 +137,18 @@ def getTypeTokenRatio(tokens):
     return TTRRatio
 
 
+
+
+
+
+
+
+
+
+### FUNCTIONS FOR WORD REPETITION METRIC: ###
+
 # (String, String) -> Bool
-# Determine if the word is a content word by matching it's ID to either a noun, adj, adverb, or verb
+# Determine if the word is a content word by matching it's tag (part of speech tag) to either a noun, adj, adverb, or verb
 # Ex: ('purple', 'ADJ') -> True, ('the', 'DET') -> False
 def isContentWord(tuple):
     if re.match('ADJ|ADV|NOUN|VERB', tuple[1]):
@@ -133,19 +156,19 @@ def isContentWord(tuple):
     return False
 
 
-# List (String, String) -> 
-# Lemmatize each token in the list of tuples (token, posTag), modify list tuples in place
-def makeLemmatizedList(listTuples):
+# List (String, String) -> List (String, String)
+# Lemmatize each token in the list of tuples (token, posTag), return lemmatized token/tag tuple
+def makeLemmatizedTupleList(listTuples):
     lemmatizedList = []
     for t in listTuples:
-        posTag = assignPosTag(t)
-        t = (lemmatizer.lemmatize(t[0], pos=posTag), t[1])
+        posTag = assignPosTag(t) # Assign a pos flag based on the type of token it is (noun, verb, etc)
+        t = (lemmatizer.lemmatize(t[0], pos=posTag), t[1]) # Tuple with lemmatized token and tag
         lemmatizedList.append(t)
     return lemmatizedList
 
 
 # List (String, String) -> List String
-# Add tokens to a list if that token is a noun, adjective, verb, or adverb
+# Create a list of tuples that filters out the tuples (token, tag) whose token is not a content word
 # Ex: [('the', 'DET'), ('purple', 'ADJ'), ('clown', 'NOUN')] -> ['purple', 'clown']
 def removeNonContentWords(listTags):
     contentWordsList = []
@@ -160,12 +183,18 @@ def removeNonContentWords(listTags):
 # Make a list of tokens where each token must be a lemmatized content word (noun, adjective, verb, or adverb)
 # Ex: ["Here", "is", "a", "shiny", "balloons", "of", "death"] -> ["Here", "is", "shiny", "balloon", "death"]
 def getLemmatizedContentTokens(tokens):
-    newList = nltk.pos_tag(tokens, tagset='universal') # Tags: [('purple', 'ADJ'), ('the', 'DET')]
+    # Add tags to each token: List String -> List (String, String)
+    newList = nltk.pos_tag(tokens, tagset='universal') # Tag: [('purple', 'ADJ'), ('the', 'DET')]
     # print("Tagged tokens list:", newList) # TEST
-    newList = makeLemmatizedList(newList)
+
+    # Lemmatize the token in each tuple
+    newList = makeLemmatizedTupleList(newList)
     # print("Lemmatized list:", newList) # TEST
+
+    # Remove tuples with non-content tokens, and condense list tuples into list tokens
     newList = removeNonContentWords(newList)
     # print("Only content words:", newList) # TEST
+
     return newList
 
 
@@ -173,12 +202,14 @@ def getLemmatizedContentTokens(tokens):
 # Count the number of repetitions for each token within 10 subsequent tokens, and add it all up.
 # Ex: ["got", "door", "stopped", "suddenly", "then", "walked", "Look", "something", "bundle", "clothes", "lying", "door", "something", "pulled", "Mathilde", "thought", "look", "Tuppence", "wondered", "quickened", "pace", "almost", "running", "got", "door", "stopped", "suddenly", "was", "bundle", "old", "clothes", "clothes", "was", "old", "enough", "so", "was", "body", "wore", "Tuppence", "bent", "over", "then", "stood", "steadied", "hand", "door"] -> 7
 def countRepetitions(tokens):
-    dictRepetitions = {}
+    dictRepetitions = {} 
     hashTable = {}
     totalValue = 0
+    
+    # Identify repetitions
     for index, token in enumerate(tokens):
         token = token.lower() # Dict is case-sensitive, make sure tokens are uniform
-        if hashTable.get(token) != None:
+        if hashTable.get(token) != None: #If token is already in hash table, make sure the program knows it has appeared multiple times
             hashTable[token] += 1
             if dictRepetitions.get(token) != None:
                 dictRepetitions[token] += 1
@@ -186,13 +217,16 @@ def countRepetitions(tokens):
                 dictRepetitions[token] = 1
         else:
             hashTable[token] = 1
-        if index >= 10:
+        if index >= 10: # Only looking for repetitions within 10 subsequent tokens
             tokenToRemove = tokens[index - 10].lower()
             hashTable[tokenToRemove] -= 1
             if hashTable[tokenToRemove] <= 0: 
                 del hashTable[tokenToRemove]
+
+    # Add up all repetitions
     for value in dictRepetitions.itervalues():
         totalValue += value
+
     return totalValue
 
 
@@ -204,12 +238,23 @@ def getWordRepetitionPercent(tokens):
         tokens = tokens[:55000]
     lemmatizedContentTokens = getLemmatizedContentTokens(tokens)
     # print(lemmatizedContentTokens) # TEST
+
     numRepetitions = countRepetitions(lemmatizedContentTokens)
     # print(numRepetitions) # TEST
     # print(len(lemmatizedContentTokens)) # TEST
+
     repetitionPercent = numRepetitions / len(lemmatizedContentTokens)
     return repetitionPercent
 
+
+
+
+
+
+
+
+
+### MAIN FUNCTION: ###
 
 def main():
     txt = getTxtFromFile()
