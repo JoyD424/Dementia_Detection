@@ -33,6 +33,37 @@ CONTRACTION_DICTIONARY = {
 
 
 
+### GENERAL FUNCTIONS: ###
+
+#  -> File
+# Text processing: Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
+def openFile():
+    txtFileName = raw_input("Text file name (.txt): ")
+    txtFile = codecs.open(txtFileName, encoding='utf-8')
+    return txtFile
+
+
+# (String, String) -> String
+# Determine a flag for the token based its part of speech (ADJ, NOUN, VERB, ADV, else) so that lemmatizer.lemmatize(...) can lemmatize properly
+# Ex: ('purple', 'ADJ') -> 'a'. Can then call lemmatizer.lemmatize('purple', pos='a')
+def assignPosTag(tuple):
+    posTag = 'n' # Default: treat as a noun
+    if tuple[1] == 'ADJ':
+        posTag = 'a'
+    elif tuple[1] == 'ADV':
+        posTag = 'r'
+    elif tuple[1] == 'VERB':
+        posTag = 'v'
+    return posTag
+
+
+
+
+
+
+
+
+
 ### FUNCTIONS FOR TOKEN/TYPE RATIO: ###
 
 # String -> String
@@ -82,26 +113,9 @@ def filterSpecialPunctuation(txtFile):
 
 
 # File -> String
-# Text processing: Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
-def getTxtFromFile():
-    # txtFileName = raw_input("Text file name (.txt): ")
-    txtFile = codecs.open('sample.txt', encoding='utf-8')
+def getTxtFromFile(txtFile):
     contents = filterSpecialPunctuation(txtFile)
     return contents
-
-
-# (String, String) -> String
-# Determine a flag for the token based its part of speech (ADJ, NOUN, VERB, ADV, else) so that lemmatizer.lemmatize(...) can lemmatize properly
-# Ex: ('purple', 'ADJ') -> 'a'. Can then call lemmatizer.lemmatize('purple', pos='a')
-def assignPosTag(tuple):
-    posTag = 'n' # Default: treat as a noun
-    if tuple[1] == 'ADJ':
-        posTag = 'a'
-    elif tuple[1] == 'ADV':
-        posTag = 'r'
-    elif tuple[1] == 'VERB':
-        posTag = 'v'
-    return posTag
 
 
 # List String -> Int
@@ -257,7 +271,8 @@ def getWordRepetitionPercent(tokens):
 ### MAIN FUNCTION: ###
 
 def main():
-    txt = getTxtFromFile()
+    txtFile = openFile()
+    txt = getTxtFromFile(txtFile)
     tokens = tokenizeTxt(txt)
     # print(tokens) # TEST
 
