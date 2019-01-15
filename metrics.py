@@ -9,7 +9,8 @@ lemmatizer = WordNetLemmatizer()
 reload(sys)
 sys.setdefaultencoding("utf-8") # Instead of ASCII, which had caused errors with nltk.tokenizer as it processed file contents
 
-# TextData stores the metrics for a given text
+
+# TextData stores the metrics for a given text:
 class TextData:
 
     def __init__(self, fileName, ttrRatio, listWTIR, repetitionPercent):
@@ -146,7 +147,7 @@ def getTxtFromFile(txtFile):
     return contents
 
 
-# List String -> Int, List Tuple
+# List String -> Int, List (Int, Int)
 # Counts the number of unique lemmatized words in the list of tokens (only up to the 55,000th token). 
 # Also calculates the WTIR (TOTAL unique lemmatized word tokens calculated at every 10,000th interval)
 def countLemmatizedWordsAndWTIR(tokens):
@@ -178,8 +179,9 @@ def countLemmatizedWordsAndWTIR(tokens):
     return totalWordTypes, listWTIR
  
 
-# List String -> Int
-# Divides number of lemmatized word types (total number of different words) by total word tokens (up to 55,000), and returns this ratio
+# List String -> Int, List (Int, Int)
+# Divides number of lemmatized word types (total number of different words) by total word tokens (up to 55,000), and returns this ratio.
+# Also returns a list of the word type introduction rates (TOTAL unique lemmatized word tokens calculated at every 10,000th interval)
 # This is effectively a measure of vocabulary size in a given text
 def getTTRAndWTIR(tokens):
     numWordTokens = len(tokens)
@@ -313,7 +315,7 @@ def getWordRepetitionPercent(tokens):
 
 ### MAIN FUNCTION & TEXT PROCESSING FUNCTIONS: ###
 
-# String -> Int Int
+# String -> Int, List (Int, Int), Int
 # Takes in a file name, opens the file, extracts and analyze text in the file to calculate 2 metrics. Returns these 2 metrics.
 def analyzeTextFile(fileName):
     file = openFile(fileName)
