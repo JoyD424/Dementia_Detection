@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import sys, re, string, nltk, codecs
 from nltk.stem import WordNetLemmatizer
 
@@ -8,6 +8,19 @@ lemmatizer = WordNetLemmatizer()
 
 reload(sys)
 sys.setdefaultencoding("utf-8") # Instead of ASCII, which had caused errors with nltk.tokenizer as it processed file contents
+
+# TextData stores the metrics for a given text
+class TextData:
+
+    def __init__(self, fileName, ttrRatio, listWTIR, repetitionPercent):
+        self.fileName = fileName # Ex: 'sample.txt'
+        self.ttrRatio = ttrRatio # Type to token ratio
+        self.listWTIR = listWTIR
+        self.repetitionPercent = repetitionPercent
+
+    def printTextData(self):
+        print(self.fileName + ":", str(self.ttrRatio) + ",", str(self.listWTIR) + ",", str(self.repetitionPercent))
+        return 
 
 
 # Dictionary of contractions
@@ -35,10 +48,18 @@ CONTRACTION_DICTIONARY = {
 
 ### GENERAL FUNCTIONS: ###
 
+# -> List String
+# Get user input for a list of text file names for program to process. Turn input into a list of strings containing file names
+def getTxtFileNames():
+    input = raw_input("Enter text file names for processing (Ex: sample1.txt sample2.txt sample3.txt)\n")
+    listFileNames = input.split()
+    # print(listFileNames) # TEST
+    return listFileNames
+
+
 #  -> File
 # Text processing: Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
-def openFile():
-    txtFileName = raw_input("Text file name (.txt): ")
+def openFile(txtFileName):
     txtFile = codecs.open(txtFileName, encoding='utf-8')
     return txtFile
 
@@ -55,6 +76,13 @@ def assignPosTag(tuple):
     elif tuple[1] == 'VERB':
         posTag = 'v'
     return posTag
+
+# List TextData -> 
+# Prints the content of each TextData in the list
+def printListTextData(listTextData):
+    for td in listTextData:
+        td.printTextData()
+    return 
 
 
 
@@ -118,37 +146,52 @@ def getTxtFromFile(txtFile):
     return contents
 
 
-# List String -> Int
-# Counts the number of unique lemmatized words in the list of tokens (only up to the 55,000th token)
-def countLemmatizedWords(tokens):
+# List String -> Int, List Tuple
+# Counts the number of unique lemmatized words in the list of tokens (only up to the 55,000th token). 
+# Also calculates the WTIR (TOTAL unique lemmatized word tokens calculated at every 10,000th interval)
+def countLemmatizedWordsAndWTIR(tokens):
     lemmatizedWordDict = {}
+    totalWordTypes = 0 # Measures unqiue lemmatized words up to the 55,000th token
+    reached55000Token = False
+    listWTIR = [(0, 0)] # Word type introduction rate list, where each item is a tuple (num unique word types, interval) measuring the total unique word types encountered at every 10,000th interval
+
     PosTagList = nltk.pos_tag(tokens, tagset='universal') # Creates list of tuples: [(token, pos tag), etc]
     # print(PosTagList) # TEST
+
     for index, tokenPosTuple in enumerate(PosTagList):
         if not index < 55000: # Only consider up to the 55,000th token
-            break
+            totalWordTypes = len(lemmatizedWordDict)
+            reached55000Token = True
         posTag = assignPosTag(tokenPosTuple)
         lemmatizedToken = lemmatizer.lemmatize(tokenPosTuple[0], pos=posTag)
         # print(lemmatizedToken) # TEST
         if lemmatizedToken not in lemmatizedWordDict:
             lemmatizedWordDict[lemmatizedToken] = True
-    return len(lemmatizedWordDict)
+        if (index + 1) % 10000 == 0: # Determine if must calculate the WTIR at an interval of 10,000
+            newWTIR = (index + 1, len(lemmatizedWordDict)) # Ex: (10000, 2000)
+            listWTIR.append(newWTIR)
+    
+    # Deals with cases where the num of tokens is less than 55,000
+    if not reached55000Token:
+        totalWordTypes = len(lemmatizedWordDict)
+
+    return totalWordTypes, listWTIR
  
 
 # List String -> Int
 # Divides number of lemmatized word types (total number of different words) by total word tokens (up to 55,000), and returns this ratio
 # This is effectively a measure of vocabulary size in a given text
-def getTypeTokenRatio(tokens):
+def getTTRAndWTIR(tokens):
     numWordTokens = len(tokens)
     # print("Length of tokens:", numWordTokens) # TEST
     if numWordTokens > 55000:
         numWordTokens = 55000
-    numWordTypes = countLemmatizedWords(tokens)
+    numWordTypes, listWTIR = countLemmatizedWordsAndWTIR(tokens)
     # print("Total word types:", numWordTypes) # TEST
     # print("Modified length of tokens:", numWordTokens) # TEST
     TTRRatio = (numWordTypes / numWordTokens)
     # print("TTR Ratio:", TTRRatio) # TEST
-    return TTRRatio
+    return TTRRatio, listWTIR
 
 
 
@@ -268,20 +311,34 @@ def getWordRepetitionPercent(tokens):
 
 
 
-### MAIN FUNCTION: ###
+### MAIN FUNCTION & TEXT PROCESSING FUNCTIONS: ###
+
+# String -> Int Int
+# Takes in a file name, opens the file, extracts and analyze text in the file to calculate 2 metrics. Returns these 2 metrics.
+def analyzeTextFile(fileName):
+    file = openFile(fileName)
+    text = getTxtFromFile(file)
+    tokens = tokenizeTxt(text)
+    typeTokenRatio, listWTIR = getTTRAndWTIR(tokens)
+    wordRepetitions = getWordRepetitionPercent(tokens)
+    return typeTokenRatio, listWTIR, wordRepetitions
+
+
+# -> List TextData
+# Returns a list of TextData, where a TextData contains metrics extracted from each text
+def getTextData():
+    txtFileNames = getTxtFileNames()
+    listTextData = []
+    for fileName in txtFileNames:
+        typeTokenRatio, listWordTypeIntroductionRate, repetitionPercent = analyzeTextFile(fileName)
+        td = TextData(fileName, typeTokenRatio, listWordTypeIntroductionRate, repetitionPercent)
+        listTextData.append(td)
+    return listTextData
+
 
 def main():
-    txtFile = openFile()
-    txt = getTxtFromFile(txtFile)
-    tokens = tokenizeTxt(txt)
-    # print(tokens) # TEST
-
-    typeTokenRatio = getTypeTokenRatio(tokens)
-    print("TTR:", typeTokenRatio)
-
-    wordRepetitions = getWordRepetitionPercent(tokens)
-    print("Repetition Percent:", wordRepetitions)
-
+    listTextData = getTextData()
+    printListTextData(listTextData)
     return
 
 
