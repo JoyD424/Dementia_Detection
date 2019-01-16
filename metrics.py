@@ -1,6 +1,10 @@
 from __future__ import division, print_function
-import sys, re, string, nltk, codecs
+import sys, re, string, nltk, codecs, random
+import numpy as np
 from nltk.stem import WordNetLemmatizer
+from bokeh.plotting import figure, show, output_file, ColumnDataSource
+from bokeh.layouts import column
+from bokeh.palettes import Viridis, Plasma 
 
 
 lemmatizer = WordNetLemmatizer()
@@ -13,15 +17,15 @@ sys.setdefaultencoding("utf-8") # Instead of ASCII, which had caused errors with
 # TextData stores the metrics for a given text:
 class TextData:
 
-    def __init__(self, fileName, ttrRatio, listWTIR, repetitionPercent):
-        self.fileName = fileName # Ex: 'sample.txt'
+    def __init__(self, title, year, ttrRatio, listWTIR, repetitionPercent):
+        self.title = title
+        self.year = year
         self.ttrRatio = ttrRatio # Type to token ratio
         self.listWTIR = listWTIR
         self.repetitionPercent = repetitionPercent
 
     def printTextData(self):
-        print(self.fileName + ":", str(self.ttrRatio) + ",", str(self.listWTIR) + ",", str(self.repetitionPercent))
-        return 
+        print(self.title + ":", str(self.year) + ",", str(self.ttrRatio) + ",", str(self.listWTIR) + ",", str(self.repetitionPercent)) 
 
 
 # Dictionary of contractions
@@ -49,22 +53,6 @@ CONTRACTION_DICTIONARY = {
 
 ### GENERAL FUNCTIONS: ###
 
-# -> List String
-# Get user input for a list of text file names for program to process. Turn input into a list of strings containing file names
-def getTxtFileNames():
-    input = raw_input("Enter text file names for processing (Ex: sample1.txt sample2.txt sample3.txt)\n")
-    listFileNames = input.split()
-    # print(listFileNames) # TEST
-    return listFileNames
-
-
-#  -> File
-# Text processing: Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
-def openFile(txtFileName):
-    txtFile = codecs.open(txtFileName, encoding='utf-8')
-    return txtFile
-
-
 # (String, String) -> String
 # Determine a flag for the token based its part of speech (ADJ, NOUN, VERB, ADV, else) so that lemmatizer.lemmatize(...) can lemmatize properly
 # Ex: ('purple', 'ADJ') -> 'a'. Can then call lemmatizer.lemmatize('purple', pos='a')
@@ -77,6 +65,7 @@ def assignPosTag(tuple):
     elif tuple[1] == 'VERB':
         posTag = 'v'
     return posTag
+
 
 # List TextData -> 
 # Prints the content of each TextData in the list
@@ -126,6 +115,7 @@ def tokenizeTxt(text):
     initialTokens = nltk.word_tokenize(text) 
     # print(initialTokens) # TEST
     processedTokens = removePunctuationTokens(initialTokens)
+    # print(processedTokens) # TEST
     return processedTokens
 
 
@@ -136,8 +126,8 @@ def filterSpecialPunctuation(txtFile):
     contents = txtFile.read()
     # Turn unicode single quotes to ascii single quotes (for contraction processing purposes)
     contents = re.sub(u"(\u2019|\u2018)", "'", contents)
-    # Get rid of double quotes, em dashes, double hyphens, and underscores
-    contents = re.sub(u"(\u201c|\u201d|\u2014|\u005f|\u2010\u2010)", ' ', contents)
+    # Get rid of double quotes, em dashes, double hyphens, underscores, and ellipses
+    contents = re.sub(u"(\u201c|\u201d|\u2014|\u005f|\u2010\u2010|\u2026)", ' ', contents)
     return contents
 
 
@@ -175,7 +165,6 @@ def countLemmatizedWordsAndWTIR(tokens):
     # Deals with cases where the num of tokens is less than 55,000
     if not reached55000Token:
         totalWordTypes = len(lemmatizedWordDict)
-
     return totalWordTypes, listWTIR
  
 
@@ -253,27 +242,22 @@ def getLemmatizedContentTokens(tokens):
     # Remove tuples with non-content tokens, and condense list tuples into list tokens
     newList = removeNonContentWords(newList)
     # print("Only content words:", newList) # TEST
-
     return newList
 
 
 # List String -> Int
 # Count the number of repetitions for each token within 10 subsequent tokens, and add it all up.
 # Ex: ["got", "door", "stopped", "suddenly", "then", "walked", "Look", "something", "bundle", "clothes", "lying", "door", "something", "pulled", "Mathilde", "thought", "look", "Tuppence", "wondered", "quickened", "pace", "almost", "running", "got", "door", "stopped", "suddenly", "was", "bundle", "old", "clothes", "clothes", "was", "old", "enough", "so", "was", "body", "wore", "Tuppence", "bent", "over", "then", "stood", "steadied", "hand", "door"] -> 7
-def countRepetitions(tokens):
-    dictRepetitions = {} 
+def countRepetitions(tokens): 
     hashTable = {}
-    totalValue = 0
+    totalRepetitions = 0
     
     # Identify repetitions
     for index, token in enumerate(tokens):
         token = token.lower() # Dict is case-sensitive, make sure tokens are uniform
         if hashTable.get(token) != None: #If token is already in hash table, make sure the program knows it has appeared multiple times
             hashTable[token] += 1
-            if dictRepetitions.get(token) != None:
-                dictRepetitions[token] += 1
-            else:
-                dictRepetitions[token] = 1
+            totalRepetitions += 1
         else:
             hashTable[token] = 1
         if index >= 10: # Only looking for repetitions within 10 subsequent tokens
@@ -281,12 +265,7 @@ def countRepetitions(tokens):
             hashTable[tokenToRemove] -= 1
             if hashTable[tokenToRemove] <= 0: 
                 del hashTable[tokenToRemove]
-
-    # Add up all repetitions
-    for value in dictRepetitions.itervalues():
-        totalValue += value
-
-    return totalValue
+    return totalRepetitions
 
 
 # List String -> Int
@@ -302,7 +281,7 @@ def getWordRepetitionPercent(tokens):
     # print(numRepetitions) # TEST
     # print(len(lemmatizedContentTokens)) # TEST
 
-    repetitionPercent = numRepetitions / len(lemmatizedContentTokens)
+    repetitionPercent = (numRepetitions / len(lemmatizedContentTokens)) * 100
     return repetitionPercent
 
 
@@ -313,7 +292,32 @@ def getWordRepetitionPercent(tokens):
 
 
 
-### MAIN FUNCTION & TEXT PROCESSING FUNCTIONS: ###
+### TEXT PROCESSING FUNCTIONS: ###
+
+# None -> File
+# Text processing: Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
+def openFile(txtFileName):
+    txtFile = codecs.open(txtFileName, encoding='utf-8')
+    return txtFile
+
+# String -> String Int
+# Returns the year the text was written as an int, and return the title of the text as a string
+# Ex: "1920_TheMysteriousAffairAtStyles_AC.txt" -> "The Mysterious Affair At Styles", 1920
+def parseFileNameForDateAndTitle(fileName):
+    listComponents = fileName.split("_")
+    year = int(listComponents[0])
+    title = " ".join(re.sub(r"([A-Z])", r" \1", listComponents[1]).split())
+    return title, year
+
+
+# -> List String
+# Text processing: Get user input for a list of text file names for program to process. Turn input into a list of strings containing file names
+def getTxtFileNames():
+    input = raw_input("Enter text file names for processing (Ex: sample1.txt sample2.txt sample3.txt)\n")
+    listFileNames = input.split()
+    # print(listFileNames) # TEST
+    return listFileNames
+
 
 # String -> Int, List (Int, Int), Int
 # Takes in a file name, opens the file, extracts and analyze text in the file to calculate 2 metrics. Returns these 2 metrics.
@@ -326,23 +330,199 @@ def analyzeTextFile(fileName):
     return typeTokenRatio, listWTIR, wordRepetitions
 
 
-# -> List TextData
+# None -> List TextData
 # Returns a list of TextData, where a TextData contains metrics extracted from each text
 def getTextData():
     txtFileNames = getTxtFileNames()
     listTextData = []
     for fileName in txtFileNames:
         typeTokenRatio, listWordTypeIntroductionRate, repetitionPercent = analyzeTextFile(fileName)
-        td = TextData(fileName, typeTokenRatio, listWordTypeIntroductionRate, repetitionPercent)
+        title, year = parseFileNameForDateAndTitle(fileName)
+        td = TextData(title, year, typeTokenRatio, listWordTypeIntroductionRate, repetitionPercent)
         listTextData.append(td)
     return listTextData
 
 
+
+
+
+
+
+
+
+### GRAPHING FUNCTIONS: ###
+
+# List Int, List Int -> (Int, Int)
+# Estimate coefficients for linear regression model, where y = b0 + b1*x
+# Code from https://www.geeksforgeeks.org/linear-regression-python-implementation/
+def getCoefficients(xList, yList):
+    numPoints = np.size(xList) # Number of points in data set 
+    xMean, yMean = np.mean(xList), np.mean(yList)
+    crossDeviationXY = np.sum(yList * xList) - (numPoints * xMean * yMean)
+    crossDeviationXX = np.sum(xList * xList) - (numPoints * xMean * xMean)
+    b1 = crossDeviationXY / crossDeviationXX
+    b0 = yMean - (b1 * xMean)
+    return (b0, b1)
+
+
+# List TextData -> List Int
+# Extract year of each TextData, create a list of years, return that list
+def getListYears(listTextData):
+    listYear = []
+    for td in listTextData:
+        listYear.append(td.year)
+    return listYear
+
+
+# List TextData -> List Float
+# Extract TTR of each TextData, create a list of TTR, return that list
+def getListTTR(listTextData):
+    listTTR = []
+    for td in listTextData:
+        listTTR.append(td.ttrRatio)
+    return listTTR
+
+
+# List TextData -> List Float
+# Extract repetition percent of each TextData, create a list of repetition percent, return that list
+def getListRepetitionPercent(listTextData):
+    listRepetitionPercent = []
+    for td in listTextData:
+        listRepetitionPercent.append(td.repetitionPercent)
+    return listRepetitionPercent
+
+
+# List TextData -> List Float
+# Extract title of each TextData, create a list of titles, return that list
+def getListTitles(listTextData):
+    listTitle = []
+    for td in listTextData:
+        listTitle.append(td.title)
+    return listTitle
+
+
+# String -> String
+# Generates a random color in either the Plasma or Viridis palette.
+# colorGenerator("Viridis") -> '#1F958B'
+def colorGenerator(paletteName):
+    indexOneList = [256, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    firstIndex = random.choice(indexOneList)
+    secondIndex = random.randint(0, firstIndex)
+    if paletteName == "Viridis":
+        return Viridis[firstIndex][secondIndex]
+    return Plasma[firstIndex][secondIndex]
+
+
+# List Int, List Int, List String -> Plot
+# Create a plot containing information for the type-to-token ratio (line of best fit, scatterplot)
+def createTTRGraph(xPosnList, yPosnList, listTitle):
+    xArr, yArr = np.array(xPosnList), np.array(yPosnList)
+    
+    source = ColumnDataSource(data=dict(
+    x = xPosnList,
+    y = yPosnList,
+    title = listTitle))
+
+    tooltips = [
+    ("Year Published", "@x"),
+    ("TTR Ratio", "@y"),
+    ("Text Title", "@title")
+    ]
+
+    graph = figure(title = "Type-to-Token Ratio: Measure of Vocabulary Size", 
+            x_axis_type = "linear",
+            y_axis_type = "linear",
+            x_range = (xArr[0] - 5, xArr[-1] + 5),
+            y_range = (0, .15),
+            x_axis_label = "Year Published",
+            y_axis_label = "Type-to-Token Ratio",
+            tooltips = tooltips)
+    
+    # Equation coefficients for line of best fit:
+    b0 = getCoefficients(xArr, yArr)[0]
+    b1 = getCoefficients(xArr, yArr)[1]
+
+    # Graph line of best fit:
+    strEqn = "y = " + str(b1) + "x + " + str(b0)
+    graph.line(xArr, b0 + (b1 * xArr), legend = strEqn,line_color = colorGenerator("Viridis"), line_dash = "solid", line_width = 3.0)
+
+    # Graph individual data points:
+    graph.circle(x = 'x', y = 'y', size = 15, source = source, fill_color = colorGenerator("Plasma"), line_color = colorGenerator("Plasma"))
+
+    graph.legend.location = "top_right"
+    return graph
+
+
+# List Int, List Int, List String -> Plot
+# Create a Plot for word repetition percent. 
+def createWordRepetitionGraph(xPosnList, yPosnList, listTitle):
+    xArr, yArr = np.array(xPosnList), np.array(yPosnList)
+    
+    source = ColumnDataSource(data=dict(
+    x = xPosnList,
+    y = yPosnList,
+    title = listTitle))
+
+    tooltips = [
+    ("Year Published", "@x"),
+    ("Repetition Percent", "@y"),
+    ("Text Title", "@title")
+    ]
+
+    graph = figure(title = "Close Distance Word Repetition Percent", 
+            x_axis_type = "linear",
+            y_axis_type = "linear",
+            x_range = (xArr[0] - 5, xArr[-1] + 5),
+            y_range = (0, 20),
+            x_axis_label = "Year Published",
+            y_axis_label = "Lexical Repetition as Percentage",
+            tooltips = tooltips)
+    
+    # Equation coefficients for line of best fit:
+    b0 = getCoefficients(xArr, yArr)[0]
+    b1 = getCoefficients(xArr, yArr)[1]
+
+    # Graph line of best fit:
+    strEqn = "y = " + str(b1) + "x + " + str(b0)
+    graph.line(xArr, b0 + (b1 * xArr), legend = strEqn,line_color = colorGenerator("Viridis"), line_dash = "dashed", line_width = 3.0)
+
+    # Graph individual data points:
+    graph.circle(x = 'x', y = 'y', size = 15, source = source, fill_color = colorGenerator("Plasma"), line_color = colorGenerator("Plasma"))
+
+    graph.legend.location = "top_right"
+    return graph
+
+
+# List TextData -> None
+# Visualizes the data computed (turns into graphs)
+def graphData(listTextData):
+    listYear, listTTR, listRepetitionPercent, listTitle = getListYears(listTextData), getListTTR(listTextData), getListRepetitionPercent(listTextData), getListTitles(listTextData)
+    # print(str(xPosnList)) # TEST
+    # print(str(yPosnList)) # TEST
+    # print(str(listRepetitionPercent)) # TEST
+    # print(str(titleList)) # TEST
+    ttrGraph = createTTRGraph(listYear, listTTR, listTitle)
+    wordRepetitionGraph = createWordRepetitionGraph(listYear, listRepetitionPercent, listTitle)
+
+    output_file("test.html", title="Test")
+    show(column(ttrGraph, wordRepetitionGraph))
+    return 
+
+
+
+
+
+
+
+
+
+### MAIN FUNCTION: ###
+
 def main():
     listTextData = getTextData()
-    printListTextData(listTextData)
+    printListTextData(listTextData) # TEST
+    graphData(listTextData)
     return
-
 
 if __name__ == "__main__":
     main()
