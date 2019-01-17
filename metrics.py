@@ -3,8 +3,9 @@ import sys, re, string, nltk, codecs, random
 import numpy as np
 from nltk.stem import WordNetLemmatizer
 from bokeh.plotting import figure, show, output_file, ColumnDataSource
-from bokeh.layouts import column
+from bokeh.layouts import column, row, widgetbox
 from bokeh.models import HoverTool
+from bokeh.models.widgets import Paragraph, Panel, Tabs
 from bokeh.palettes import Viridis, Plasma 
 
 
@@ -506,12 +507,15 @@ def getListWTIR(textData):
     return listInterval, listToken
 
 
-# Int -> String
-# Assigns a legend category for a data point based off the year the text was written (this function is specific to Agatha Christie)
-def assignLegendCategoryAndLineDash(year):
-    if year <= 1950:
-        return "Earlier Work", "dashed"
-    return "Later Work", "dotted"
+# Int, List Int -> String, String
+# Assigns a legend name and a line_dash name for a data point based off the year the text was written
+def assignLegendCategoryAndLineDash(year, listYear):
+    interval = (listYear[-1] - listYear[0]) / 3
+    if year <= listYear[0] + interval:
+        return "Early Works", "solid"
+    elif year <= listYear[0] + (2 * interval):
+        return "Mid-career Works", "dotted"
+    return "Later Work", "dotdash"
 
 
 # List TextData -> Int, Int
@@ -528,8 +532,9 @@ def maxTokenIntervalAndWordType(listTextData):
     return maxTokenInterval, maxWordType
 
 
-# List Text Data, List Int, List String -> Plot
-def createWTIRGraph(listTextData, listYear, listTitle):
+# List Text Data, List Int, List String, String -> Panel 
+# Create a graph for the WTIR. Either a line graph or circle graph specified by mode ("line" or "circle")
+def createWTIRGraph(listTextData, listYear, listTitle, mode):
     # Value Int -> List Value
     # Create a list of values that is repeated n times
     # Ex: createListRepeats(5, 5) -> [5, 5, 5, 5, 5]
@@ -539,6 +544,17 @@ def createWTIRGraph(listTextData, listYear, listTitle):
             list.append(value)
             n = n - 1
         return list
+
+    earlyCategoryColor, midCategoryColor, lateCategoryColor = colorGenerator("Plasma"), colorGenerator("Plasma"), colorGenerator("Plasma")
+
+    # String -> String
+    # Assign a color for the circle graph mode based on what category the data point belongs to
+    def assignCircleColor(legendCategoryName):
+        if legendCategoryName == "Early Works":
+            return earlyCategoryColor
+        elif legendCategoryName == "Mid-career Works":
+            return midCategoryColor
+        return lateCategoryColor
 
     maxTokenInterval, maxWordType = maxTokenIntervalAndWordType(listTextData)
     graph = figure(title = "Word Types Introduced per 10,000 Tokens",
@@ -572,13 +588,17 @@ def createWTIRGraph(listTextData, listYear, listTitle):
             mode = "mouse"
         ))
 
-        legendCategoryName, lineDashName = assignLegendCategoryAndLineDash(td.year)
-        color = colorGenerator("Viridis")
-        graph.line(x = 'x', y = 'y', line_width = 2, color = color, muted_color = color, muted_alpha = .1, legend = legendCategoryName, line_dash = lineDashName, source = source)
+        legendCategoryName, lineDashName = assignLegendCategoryAndLineDash(td.year, listYear)
+        if mode == "line":
+            color = colorGenerator("Viridis")
+            graph.line(x = 'x', y = 'y', line_width = 2, color = color, muted_color = color, muted_alpha = .1, legend = legendCategoryName, line_dash = lineDashName, source = source)
+        else:
+            graph.circle(x = 'x', y = 'y', size = 10, source = source, fill_color = assignCircleColor(legendCategoryName), muted_color = assignCircleColor(legendCategoryName), muted_alpha = .1, legend = legendCategoryName)
 
     graph.legend.location = "top_right"
     graph.legend.click_policy="mute"
-    return graph 
+    tab = Panel(child = graph, title = mode)
+    return tab 
 
 
 # List TextData -> None
@@ -590,10 +610,44 @@ def graphData(listTextData):
     # print(str(listRepetitionPercent)) # TEST
     # print(str(titleList)) # TEST
     ttrGraph = createTTRGraph(listYear, listTTR, listTitle)
+    w1 = widgetbox(Paragraph(text = """Text goes here"""))
+    w2 = widgetbox(Paragraph(text = """Text also goes here"""))
+    w3 = widgetbox(Paragraph(text = """Text also also goes here"""))
     wordRepetitionGraph = createWordRepetitionGraph(listYear, listRepetitionPercent, listTitle)
-    wtirGraph = createWTIRGraph(listTextData, listYear, listTitle)
+    wtirLineTab, wtirCircleTab = createWTIRGraph(listTextData, listYear, listTitle, "line"), createWTIRGraph(listTextData, listYear, listTitle, "circle")
+    tabs = Tabs(tabs = [wtirLineTab, wtirCircleTab])
+
+    graphs, widgets = [ttrGraph, wordRepetitionGraph, tabs], [w1, w2, w3]
+    cols = []
+    for i in range(0, 3):
+        r = row(graphs[i], widgets[i])
+        cols.append(r)
     output_file("test.html", title="Test")
-    show(column(ttrGraph, wordRepetitionGraph, wtirGraph))
+    # show(column(ttrGraph, wordRepetitionGraph, wtirGraph))
+    show(column(cols))
+
+    return 
+
+
+
+
+
+
+
+
+
+### FILE WRITING FUNCTION: ###
+
+# List TextData -> 
+# Write metrics generated by program to a text file (input by user). If file does not exist, program will create a file
+# located in the directory of this program
+def writeTextDataToFile(listTextData):
+    fileName = raw_input("File to export data to (.txt): ")
+    txtFile = open(fileName, "w")
+    for td in listTextData:
+        txtFile.write(td.title + ' ' + str(td.year) + ' ' + str(td.ttrRatio) + ' ' + str(td.listWTIR) + ' ' + str(td.repetitionPercent))
+    txtFile.close()
+    print("Data written to", fileName)
     return 
 
 
@@ -609,6 +663,7 @@ def graphData(listTextData):
 def main():
     listTextData = getTextData()
     printListTextData(listTextData) # TEST
+    writeTextDataToFile(listTextData)
     graphData(listTextData)
     return
 
