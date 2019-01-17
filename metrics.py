@@ -4,6 +4,7 @@ import numpy as np
 from nltk.stem import WordNetLemmatizer
 from bokeh.plotting import figure, show, output_file, ColumnDataSource
 from bokeh.layouts import column
+from bokeh.models import HoverTool
 from bokeh.palettes import Viridis, Plasma 
 
 
@@ -407,7 +408,7 @@ def getListTitles(listTextData):
 def colorGenerator(paletteName):
     indexOneList = [256, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     firstIndex = random.choice(indexOneList)
-    secondIndex = random.randint(0, firstIndex)
+    secondIndex = random.randint(0, firstIndex - 1)
     if paletteName == "Viridis":
         return Viridis[firstIndex][secondIndex]
     return Plasma[firstIndex][secondIndex]
@@ -493,6 +494,93 @@ def createWordRepetitionGraph(xPosnList, yPosnList, listTitle):
     return graph
 
 
+# TextData -> List Int, List Int
+# Extract listWTIR from td, and return as 2 lists. 
+# List 1 and 2 contain the first and second values (respectivelyof the tuples in listWTIR.
+def getListWTIR(textData):
+    listInterval = []
+    listToken = []
+    for wtir in textData.listWTIR:
+        listInterval.append(wtir[0])
+        listToken.append(wtir[1])
+    return listInterval, listToken
+
+
+# Int -> String
+# Assigns a legend category for a data point based off the year the text was written (this function is specific to Agatha Christie)
+def assignLegendCategoryAndLineDash(year):
+    if year <= 1950:
+        return "Earlier Work", "dashed"
+    return "Later Work", "dotted"
+
+
+# List TextData -> Int, Int
+# Find the maximum token interval and maximum word type token count in each TextData.listWTIR of the list TextData
+def maxTokenIntervalAndWordType(listTextData):
+    maxTokenInterval = 0
+    maxWordType = 0
+    for td in listTextData:
+        currentTokenInterval, currentWordType = td.listWTIR[-1][0], td.listWTIR[-1][1]
+        if currentTokenInterval > maxTokenInterval:
+            maxTokenInterval = currentTokenInterval
+        if currentWordType > maxWordType:
+            maxWordType = currentWordType
+    return maxTokenInterval, maxWordType
+
+
+# List Text Data, List Int, List String -> Plot
+def createWTIRGraph(listTextData, listYear, listTitle):
+    # Value Int -> List Value
+    # Create a list of values that is repeated n times
+    # Ex: createListRepeats(5, 5) -> [5, 5, 5, 5, 5]
+    def createListRepeats(value, n):
+        list = []
+        while n > 0:
+            list.append(value)
+            n = n - 1
+        return list
+
+    maxTokenInterval, maxWordType = maxTokenIntervalAndWordType(listTextData)
+    graph = figure(title = "Word Types Introduced per 10,000 Tokens",
+                x_axis_type = "linear",
+                y_axis_type = "linear",
+                x_range = (0, maxTokenInterval + 5000),
+                y_range = (0, maxWordType + 1000),
+                x_axis_label = "Token Interval",
+                y_axis_label = "Word Types Introduced")
+                
+    for td in listTextData:
+        xPosnList, yPosnList = getListWTIR(td)
+        
+        source = ColumnDataSource(data = dict(
+            x = xPosnList,
+            y = yPosnList,
+            year = createListRepeats(td.year, len(xPosnList)), # Must do this because ColumnDataSource's columns must be of the same length
+            title = createListRepeats(td.title, len(xPosnList)) 
+        ))
+
+        graph.add_tools(HoverTool(
+            tooltips = [
+                ("Year Published", "@year"),
+                ("Text Title", "@title"),
+                ("Total Word Types", "@y"),
+                ("Token Interval", "@x")
+            ],
+            formatters = {
+                "Text Title" : "printf"
+            },
+            mode = "mouse"
+        ))
+
+        legendCategoryName, lineDashName = assignLegendCategoryAndLineDash(td.year)
+        color = colorGenerator("Viridis")
+        graph.line(x = 'x', y = 'y', line_width = 2, color = color, muted_color = color, muted_alpha = .1, legend = legendCategoryName, line_dash = lineDashName, source = source)
+
+    graph.legend.location = "top_right"
+    graph.legend.click_policy="mute"
+    return graph 
+
+
 # List TextData -> None
 # Visualizes the data computed (turns into graphs)
 def graphData(listTextData):
@@ -503,9 +591,9 @@ def graphData(listTextData):
     # print(str(titleList)) # TEST
     ttrGraph = createTTRGraph(listYear, listTTR, listTitle)
     wordRepetitionGraph = createWordRepetitionGraph(listYear, listRepetitionPercent, listTitle)
-
+    wtirGraph = createWTIRGraph(listTextData, listYear, listTitle)
     output_file("test.html", title="Test")
-    show(column(ttrGraph, wordRepetitionGraph))
+    show(column(ttrGraph, wordRepetitionGraph, wtirGraph))
     return 
 
 
