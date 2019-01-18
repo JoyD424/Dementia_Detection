@@ -1,5 +1,19 @@
 # Dementia_Detection
 
-Goal for the project: Analyze in writing samples (from a single person) taken across a couple of decades and determine if that person exhibits signs of demetia
+## Description
+This project analyzes writing samples over a span of decades for markers of linguistic decline commonly present in cases of dementia.
 
-Where I'm at right now: Very initial stages. I've read a paper recommended by Mr. Orwant from a similar project. I need to figure out what linguistic markers my project will be looking at and then start coding it up. More generally, though, I still need to figure out how to organize my project. 
+This project draws from the paper 
+["Longitudinal Detection of Dementia Through Lexical and Syntactic Changes in Writing" (Le, Xuan)](ftp://ftp.cs.toronto.edu/pub/gh/Le-MSc-2010.pdf). The three metrics that the paper found to have produced statistically significant results—type/token ratio, word type introduction rate, and word repetition percent—are implemented in this program.
+
+The program will return a text file (.txt) with the metrics generated and a static HTML file (.html) that displays visualizations (graphs) for data generated
+
+### Metric Definitions
+Type/token ratio: division of the types (total number of _different_ words) by lemmatized (find the stem word for variants of the same word) tokens (total number of words)
+
+
+## Interpreting Results
+
+
+
+
