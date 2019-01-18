@@ -1,5 +1,5 @@
 from __future__ import division, print_function
-import sys, re, string, nltk, codecs, random
+import sys, os, re, string, nltk, codecs, random
 import numpy as np
 from nltk.stem import WordNetLemmatizer
 from bokeh.plotting import figure, show, output_file, ColumnDataSource
@@ -87,7 +87,7 @@ def printListTextData(listTextData):
 ### FUNCTIONS FOR TOKEN/TYPE RATIO: ###
 
 # String -> String
-# Token processing function: Remove single quote from token (str) IF it is NOT the end of a contraction (e.g. 't from don't, 've from I've, etc)
+# Token processing function: Remove single quote from token (str) IF it is NOT the end of a contraction (e.g. will not remove 't from don't, 've from I've, etc)
 # Ex: "'book" -> "book", "'ve" -> "'ve"
 def deleteSingleQuoteIfNotContraction(token):
     global CONTRACTION_DICTIONARY
@@ -104,7 +104,9 @@ def removePunctuationTokens(tokens):
     for t in tokens:
         if not re.match("[" + string.punctuation + "]+", t): # Add to processedTokens anything that is not punctuation
             processedTokens.append(t)
-        elif re.match('\'[A-Za-z]+', t): # Checks special case for single quotes: matches 'book, or 've, but not ' 
+
+        # Checks special case for single quotes: matches 'book, or 've, but not '
+        elif re.match('\'[A-Za-z]+', t):  
             t = deleteSingleQuoteIfNotContraction(t)
             processedTokens.append(t)
     return processedTokens
@@ -126,29 +128,37 @@ def tokenizeTxt(text):
 # Ex: '\u201cI said \u2018books,\u2019 \u201d she said.' -> '"I said 'books,' " she said.'
 def filterSpecialPunctuation(txtFile):
     contents = txtFile.read()
+
     # Turn unicode single quotes to ascii single quotes (for contraction processing purposes)
     contents = re.sub(u"(\u2019|\u2018)", "'", contents)
+
     # Get rid of double quotes, em dashes, double hyphens, underscores, and ellipses
     contents = re.sub(u"(\u201c|\u201d|\u2014|\u005f|\u2010\u2010|\u2026)", ' ', contents)
     return contents
 
 
 # File -> String
+# Process text by dealing with special cases of punctuation, and return the processed text. 
 def getTxtFromFile(txtFile):
     contents = filterSpecialPunctuation(txtFile)
     return contents
 
 
 # List String -> Int, List (Int, Int)
-# Counts the number of unique lemmatized words in the list of tokens (only up to the 55,000th token). 
+# Counts the total number of unique lemmatized words in the list of tokens (only up to the 55,000th token). 
 # Also calculates the WTIR (TOTAL unique lemmatized word tokens calculated at every 10,000th interval)
 def countLemmatizedWordsAndWTIR(tokens):
     lemmatizedWordDict = {}
-    totalWordTypes = 0 # Measures unqiue lemmatized words up to the 55,000th token
-    reached55000Token = False
-    listWTIR = [(0, 0)] # Word type introduction rate list, where each item is a tuple (num unique word types, interval) measuring the total unique word types encountered at every 10,000th interval
 
-    PosTagList = nltk.pos_tag(tokens, tagset='universal') # Creates list of tuples: [(token, pos tag), etc]
+    # Measures unqiue lemmatized words up to the 55,000th token
+    totalWordTypes = 0 
+    reached55000Token = False
+
+    # Word type introduction rate list, where each item is a tuple (num unique word types, interval) measuring the total unique word types encountered at every 10,000th interval
+    listWTIR = [(0, 0)]
+
+    # Creates list of tuples out of the list of tokens: [(token, pos tag), etc]
+    PosTagList = nltk.pos_tag(tokens, tagset='universal') 
     # print(PosTagList) # TEST
 
     for index, tokenPosTuple in enumerate(PosTagList):
@@ -160,7 +170,8 @@ def countLemmatizedWordsAndWTIR(tokens):
         # print(lemmatizedToken) # TEST
         if lemmatizedToken not in lemmatizedWordDict:
             lemmatizedWordDict[lemmatizedToken] = True
-        if (index + 1) % 10000 == 0: # Determine if must calculate the WTIR at an interval of 10,000
+        # Determine if must calculate the WTIR at an interval of 10,000
+        if (index + 1) % 10000 == 0: 
             newWTIR = (index + 1, len(lemmatizedWordDict)) # Ex: (10000, 2000)
             listWTIR.append(newWTIR)
     
@@ -230,7 +241,8 @@ def removeNonContentWords(listTags):
 
 
 # List String -> List String
-# Make a list of tokens where each token must be a lemmatized content word (noun, adjective, verb, or adverb)
+# Make a list of tokens where each token must be a lemmatized content word (noun, adjective, verb, or adverb). 
+# Process: add tags to each token, lemmatize the token in each tuple, remove tuples with non-content tokens, turn list tuples back into list strings (tokens)
 # Ex: ["Here", "is", "a", "shiny", "balloons", "of", "death"] -> ["Here", "is", "shiny", "balloon", "death"]
 def getLemmatizedContentTokens(tokens):
     # Add tags to each token: List String -> List (String, String)
@@ -296,14 +308,30 @@ def getWordRepetitionPercent(tokens):
 
 ### TEXT PROCESSING FUNCTIONS: ###
 
-# None -> File
+# List TextData -> 
+# Write metrics generated by program to a text file (input by user). If file does not exist, program will create a file
+# located in the directory of this program
+def writeTextDataToFile(listTextData):
+    fileName = raw_input("File to export data to (.txt): ")
+    txtFile = open(fileName, "w")
+    for td in listTextData:
+        txtFile.write(td.title + ' ' + str(td.year) + ' ' + str(td.ttrRatio) + ' ' + str(td.listWTIR) + ' ' + str(td.repetitionPercent))
+    txtFile.close()
+    print("Data written to", fileName)
+    return 
+
+
+# String String -> File
 # Text processing: Function opens and reads a .txt file, delete double quotes from the contents, and returns the contents of file as a string
-def openFile(txtFileName):
-    txtFile = codecs.open(txtFileName, encoding='utf-8')
+def openFile(txtFileName, directoryName):
+    currentPath = os.getcwd()
+    fullPath = os.path.join(currentPath, directoryName, txtFileName)
+    txtFile = codecs.open(fullPath, encoding='utf-8')
     return txtFile
 
-# String -> String Int
-# Returns the year the text was written as an int, and return the title of the text as a string
+
+# String -> String, Int
+# Parses the text file name and returns the year the text was written as an int, and return the title of the text as a string
 # Ex: "1920_TheMysteriousAffairAtStyles_AC.txt" -> "The Mysterious Affair At Styles", 1920
 def parseFileNameForDateAndTitle(fileName):
     listComponents = fileName.split("_")
@@ -312,19 +340,27 @@ def parseFileNameForDateAndTitle(fileName):
     return title, year
 
 
-# -> List String
-# Text processing: Get user input for a list of text file names for program to process. Turn input into a list of strings containing file names
-def getTxtFileNames():
-    input = raw_input("Enter text file names for processing (Ex: sample1.txt sample2.txt sample3.txt)\n")
-    listFileNames = input.split()
+# -> String
+# Return the name of the directory the program is running in
+def getDirectoryName():
+    directoryName = raw_input("Enter folder name where text samples are located: ")
+    return directoryName
+
+
+# String -> List String
+# Pull out all the text files names in the directory that stores sample writing, return as a list of strings
+def getTxtFileNames(directoryName):
+    listFileNames = []
+    for txtFile in os.listdir(directoryName):
+        listFileNames.append(txtFile)
     # print(listFileNames) # TEST
     return listFileNames
 
 
-# String -> Int, List (Int, Int), Int
-# Takes in a file name, opens the file, extracts and analyze text in the file to calculate 2 metrics. Returns these 2 metrics.
-def analyzeTextFile(fileName):
-    file = openFile(fileName)
+# String, String -> List Int, List (Int, Int), List Int
+# Analyze a text file for the 3 metrics
+def analyzeTextFile(fileName, directoryName):
+    file = openFile(fileName, directoryName)
     text = getTxtFromFile(file)
     tokens = tokenizeTxt(text)
     typeTokenRatio, listWTIR = getTTRAndWTIR(tokens)
@@ -333,12 +369,13 @@ def analyzeTextFile(fileName):
 
 
 # None -> List TextData
-# Returns a list of TextData, where a TextData contains metrics extracted from each text
+# Get TextData for each text file in a user-specified directory
 def getTextData():
-    txtFileNames = getTxtFileNames()
+    directoryName = getDirectoryName()
+    txtFileNames = getTxtFileNames(directoryName)
     listTextData = []
     for fileName in txtFileNames:
-        typeTokenRatio, listWordTypeIntroductionRate, repetitionPercent = analyzeTextFile(fileName)
+        typeTokenRatio, listWordTypeIntroductionRate, repetitionPercent = analyzeTextFile(fileName, directoryName)
         title, year = parseFileNameForDateAndTitle(fileName)
         td = TextData(title, year, typeTokenRatio, listWordTypeIntroductionRate, repetitionPercent)
         listTextData.append(td)
@@ -415,6 +452,13 @@ def colorGenerator(paletteName):
     return Plasma[firstIndex][secondIndex]
 
 
+# Int, Int -> String
+# Generate a string form of a linear equation given its slope and intercerpt
+def getEquation(b0, b1):
+    string = "y = " + str(b1) + "x + " + str(b0)
+    return string
+
+
 # List Int, List Int, List String -> Plot
 # Create a plot containing information for the type-to-token ratio (line of best fit, scatterplot)
 def createTTRGraph(xPosnList, yPosnList, listTitle):
@@ -445,8 +489,7 @@ def createTTRGraph(xPosnList, yPosnList, listTitle):
     b1 = getCoefficients(xArr, yArr)[1]
 
     # Graph line of best fit:
-    strEqn = "y = " + str(b1) + "x + " + str(b0)
-    graph.line(xArr, b0 + (b1 * xArr), legend = strEqn,line_color = colorGenerator("Viridis"), line_dash = "solid", line_width = 3.0)
+    graph.line(xArr, b0 + (b1 * xArr), legend = getEquation(b0, b1), line_color = colorGenerator("Viridis"), line_dash = "solid", line_width = 3.0)
 
     # Graph individual data points:
     graph.circle(x = 'x', y = 'y', size = 15, source = source, fill_color = colorGenerator("Plasma"), line_color = colorGenerator("Plasma"))
@@ -485,8 +528,7 @@ def createWordRepetitionGraph(xPosnList, yPosnList, listTitle):
     b1 = getCoefficients(xArr, yArr)[1]
 
     # Graph line of best fit:
-    strEqn = "y = " + str(b1) + "x + " + str(b0)
-    graph.line(xArr, b0 + (b1 * xArr), legend = strEqn,line_color = colorGenerator("Viridis"), line_dash = "dashed", line_width = 3.0)
+    graph.line(xArr, b0 + (b1 * xArr), legend = getEquation(b0, b1), line_color = colorGenerator("Viridis"), line_dash = "dashed", line_width = 3.0)
 
     # Graph individual data points:
     graph.circle(x = 'x', y = 'y', size = 15, source = source, fill_color = colorGenerator("Plasma"), line_color = colorGenerator("Plasma"))
@@ -533,7 +575,7 @@ def maxTokenIntervalAndWordType(listTextData):
 
 
 # List Text Data, List Int, List String, String -> Panel 
-# Create a graph for the WTIR. Either a line graph or circle graph specified by mode ("line" or "circle")
+# Create a Panel for the WTIR. Either a line graph or circle graph specified by mode ("line" or "circle")
 def createWTIRGraph(listTextData, listYear, listTitle, mode):
     # Value Int -> List Value
     # Create a list of values that is repeated n times
@@ -601,7 +643,7 @@ def createWTIRGraph(listTextData, listYear, listTitle, mode):
     return tab 
 
 
-# List TextData -> None
+# List TextData -> 
 # Visualizes the data computed (turns into graphs)
 def graphData(listTextData):
     listYear, listTTR, listRepetitionPercent, listTitle = getListYears(listTextData), getListTTR(listTextData), getListRepetitionPercent(listTextData), getListTitles(listTextData)
@@ -610,9 +652,9 @@ def graphData(listTextData):
     # print(str(listRepetitionPercent)) # TEST
     # print(str(titleList)) # TEST
     ttrGraph = createTTRGraph(listYear, listTTR, listTitle)
-    w1 = widgetbox(Paragraph(text = """Text goes here"""))
-    w2 = widgetbox(Paragraph(text = """Text also goes here"""))
-    w3 = widgetbox(Paragraph(text = """Text also also goes here"""))
+    w1 = widgetbox(Paragraph(text = """Hover over data points to view more information"""))
+    w2 = widgetbox(Paragraph(text = """Hover over data points to view more information"""))
+    w3 = widgetbox(Paragraph(text = """Click the line/circle tab, legend categories, and hover over data."""))
     wordRepetitionGraph = createWordRepetitionGraph(listYear, listRepetitionPercent, listTitle)
     wtirLineTab, wtirCircleTab = createWTIRGraph(listTextData, listYear, listTitle, "line"), createWTIRGraph(listTextData, listYear, listTitle, "circle")
     tabs = Tabs(tabs = [wtirLineTab, wtirCircleTab])
@@ -625,29 +667,6 @@ def graphData(listTextData):
     output_file("test.html", title="Test")
     # show(column(ttrGraph, wordRepetitionGraph, wtirGraph))
     show(column(cols))
-
-    return 
-
-
-
-
-
-
-
-
-
-### FILE WRITING FUNCTION: ###
-
-# List TextData -> 
-# Write metrics generated by program to a text file (input by user). If file does not exist, program will create a file
-# located in the directory of this program
-def writeTextDataToFile(listTextData):
-    fileName = raw_input("File to export data to (.txt): ")
-    txtFile = open(fileName, "w")
-    for td in listTextData:
-        txtFile.write(td.title + ' ' + str(td.year) + ' ' + str(td.ttrRatio) + ' ' + str(td.listWTIR) + ' ' + str(td.repetitionPercent))
-    txtFile.close()
-    print("Data written to", fileName)
     return 
 
 
@@ -662,7 +681,7 @@ def writeTextDataToFile(listTextData):
 
 def main():
     listTextData = getTextData()
-    printListTextData(listTextData) # TEST
+    # printListTextData(listTextData) # TEST
     writeTextDataToFile(listTextData)
     graphData(listTextData)
     return
