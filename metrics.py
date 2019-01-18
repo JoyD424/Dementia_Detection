@@ -315,7 +315,7 @@ def writeTextDataToFile(listTextData):
     fileName = raw_input("File to export data to (.txt): ")
     txtFile = open(fileName, "w")
     for td in listTextData:
-        txtFile.write(td.title + ' ' + str(td.year) + ' ' + str(td.ttrRatio) + ' ' + str(td.listWTIR) + ' ' + str(td.repetitionPercent))
+        txtFile.write(td.title + ' ' + str(td.year) + ' ' + str(td.ttrRatio) + ' ' + str(td.listWTIR) + ' ' + str(td.repetitionPercent) + '\n')
     txtFile.close()
     print("Data written to", fileName)
     return 
