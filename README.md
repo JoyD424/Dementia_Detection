@@ -13,6 +13,20 @@ The program will return a text file (.txt) with the metrics generated and a stat
 * Word type introduction rate: calculates the word types introduced so far at every 10,000th token interval.
 * Word repetition percent: percent of lemmatized content words (stem words that are either verbs, nouns, adjectives, or adverbs) in the writing sample
 
+## Running the Program
+Create a directory that includes metrics.py. Within that directory create another directory where you can store text samples (or download the TEXT_SAMPLES folder from this repository). Format all text samples as:
+
+```
+Date_CamelCaseTitle_PersonInitials.txt
+```
+
+To run in terminal (make sure you're in the right directory):
+```Bash
+python metrics.py
+```
+
+The program will prompt you for a text file to write generated data to. It will create an html file in the directory sotring graph data.
+
 
 ## Interpreting Results
 ### Type/token Ratio Graph
